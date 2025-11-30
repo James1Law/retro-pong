@@ -1,15 +1,17 @@
-import { GameState } from '../types';
+import { GameState, PowerUpType } from '../types';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
   INITIAL_LIVES,
-  COLORS
+  COLORS,
+  POWERUP_DURATIONS
 } from '../utils/constants';
 import { Paddle } from './Paddle';
 import { Ball } from './Ball';
 import { Level } from './Level';
 import { InputManager } from './InputManager';
 import { ParticleSystem } from '../effects/ParticleSystem';
+import { PowerUpManager } from './PowerUpManager';
 import { checkBallBrickCollision, handleBallBrickBounce } from './Collision';
 
 export class Game {
@@ -18,9 +20,10 @@ export class Game {
   private input: InputManager;
 
   private paddle: Paddle;
-  private ball: Ball;
+  private balls: Ball[] = [];
   private level: Level;
   private particles: ParticleSystem;
+  private powerUpManager: PowerUpManager;
 
   private state: GameState = GameState.MENU;
   private score: number = 0;
@@ -42,14 +45,64 @@ export class Game {
 
     this.input = new InputManager(canvas);
     this.paddle = new Paddle();
-    this.ball = new Ball();
+    this.balls = [new Ball()];
     this.level = new Level();
     this.particles = new ParticleSystem();
+    this.powerUpManager = new PowerUpManager();
+
+    // Set up power-up callbacks
+    this.setupPowerUpCallbacks();
 
     // Load high score
     const savedHighScore = localStorage.getItem('neonBreakoutHighScore');
     if (savedHighScore) {
       this.highScore = parseInt(savedHighScore, 10);
+    }
+  }
+
+  private setupPowerUpCallbacks(): void {
+    this.powerUpManager.onWidePaddle = (active) => {
+      this.paddle.setWide(active);
+    };
+
+    this.powerUpManager.onStickyPaddle = (active) => {
+      this.paddle.setSticky(active);
+    };
+
+    this.powerUpManager.onSlowMo = (active) => {
+      this.balls.forEach(ball => ball.setSlowMo(active));
+    };
+
+    this.powerUpManager.onFireBall = (active) => {
+      this.balls.forEach(ball => ball.setFireBall(active));
+    };
+
+    this.powerUpManager.onMultiBall = () => {
+      this.spawnMultiBalls();
+    };
+
+    this.powerUpManager.onExtraLife = () => {
+      this.lives++;
+    };
+  }
+
+  private spawnMultiBalls(): void {
+    // Find an active ball to clone
+    const activeBall = this.balls.find(b => b.isLaunched && !b.isStuckToPaddle);
+    if (!activeBall) return;
+
+    // Create 2 additional balls at different angles
+    for (let i = 0; i < 2; i++) {
+      const newBall = activeBall.clone();
+      const angleOffset = (i === 0 ? -1 : 1) * (Math.PI / 6); // +/- 30 degrees
+
+      const currentAngle = Math.atan2(newBall.velocityX, -newBall.velocityY);
+      const newAngle = currentAngle + angleOffset;
+
+      newBall.velocityX = Math.sin(newAngle) * newBall.speed;
+      newBall.velocityY = -Math.cos(newAngle) * newBall.speed;
+
+      this.balls.push(newBall);
     }
   }
 
@@ -128,49 +181,89 @@ export class Game {
     }
     this.paddle.update(dt);
 
-    // Launch ball
-    if (!this.ball.isLaunched && this.input.isActionPressed()) {
-      this.ball.launch();
+    // Handle ball launch (including from sticky paddle)
+    if (this.input.isActionPressed()) {
+      this.balls.forEach(ball => {
+        if (!ball.isLaunched || ball.isStuckToPaddle) {
+          ball.launch();
+        }
+      });
     }
 
-    // Update ball
-    const ballAlive = this.ball.update(dt, this.paddle);
+    // Update all balls
+    const ballsToRemove: Ball[] = [];
 
-    if (!ballAlive) {
+    for (const ball of this.balls) {
+      const ballAlive = ball.update(dt, this.paddle);
+
+      if (!ballAlive) {
+        ballsToRemove.push(ball);
+        continue;
+      }
+
+      // Ball-paddle collision
+      if (ball.checkPaddleCollision(this.paddle)) {
+        this.paddle.flash();
+      }
+
+      // Ball-brick collisions
+      for (const brick of this.level.activeBricks) {
+        const collision = checkBallBrickCollision(ball, brick);
+        if (collision) {
+          // Fire ball doesn't bounce, just destroys
+          if (!ball.isFireBall) {
+            handleBallBrickBounce(ball, collision);
+          }
+
+          const destroyed = brick.hit();
+
+          if (destroyed) {
+            this.score += brick.points;
+            ball.increaseSpeed();
+            this.screenShake = 1;
+
+            // Emit explosion particles
+            this.particles.emitExplosion(
+              brick.x,
+              brick.y,
+              brick.color,
+              brick.width,
+              brick.height
+            );
+
+            // Spawn power-up
+            this.powerUpManager.spawnPowerUp(
+              brick.x + brick.width / 2,
+              brick.y + brick.height / 2
+            );
+          }
+
+          // Fire ball can hit multiple bricks
+          if (!ball.isFireBall) {
+            break;
+          }
+        }
+      }
+    }
+
+    // Remove dead balls
+    this.balls = this.balls.filter(b => !ballsToRemove.includes(b));
+
+    // Check if all balls are lost
+    if (this.balls.length === 0) {
       this.loseLife();
       return;
     }
 
-    // Ball-paddle collision
-    if (this.ball.checkPaddleCollision(this.paddle)) {
-      this.paddle.flash();
-    }
-
-    // Ball-brick collisions
-    for (const brick of this.level.activeBricks) {
-      const collision = checkBallBrickCollision(this.ball, brick);
-      if (collision) {
-        handleBallBrickBounce(this.ball, collision);
-        const destroyed = brick.hit();
-
-        if (destroyed) {
-          this.score += brick.points;
-          this.ball.increaseSpeed();
-          this.screenShake = 1;
-
-          // Emit explosion particles
-          this.particles.emitExplosion(
-            brick.x,
-            brick.y,
-            brick.color,
-            brick.width,
-            brick.height
-          );
-        }
-
-        break; // Only handle one collision per frame
-      }
-    }
+    // Update power-ups
+    this.powerUpManager.update(
+      dt,
+      time,
+      this.paddle.x,
+      this.paddle.y,
+      this.paddle.width,
+      this.paddle.height
+    );
 
     // Update level and particles
     this.level.update(dt, time);
@@ -185,7 +278,8 @@ export class Game {
   private updateLevelComplete(): void {
     if (this.input.isActionPressed()) {
       this.level.nextLevel();
-      this.ball.reset(this.paddle);
+      this.resetBalls();
+      this.powerUpManager.clearFallingPowerUps();
       this.state = GameState.PLAYING;
     }
   }
@@ -201,17 +295,26 @@ export class Game {
     this.lives = INITIAL_LIVES;
     this.level.loadLevel(0);
     this.paddle.reset();
-    this.ball.reset(this.paddle);
+    this.resetBalls();
     this.particles.clear();
+    this.powerUpManager.clear();
     this.state = GameState.PLAYING;
+  }
+
+  private resetBalls(): void {
+    this.balls = [new Ball()];
+    this.balls[0].reset(this.paddle);
   }
 
   private loseLife(): void {
     this.lives--;
+    this.powerUpManager.clear();
+    this.paddle.reset();
+
     if (this.lives <= 0) {
       this.gameOver();
     } else {
-      this.ball.reset(this.paddle);
+      this.resetBalls();
     }
   }
 
@@ -299,17 +402,20 @@ export class Game {
     // Render level (bricks)
     this.level.render(ctx, time);
 
-    // Render ball
-    this.ball.render(ctx);
+    // Render power-ups
+    this.powerUpManager.render(ctx);
+
+    // Render all balls
+    this.balls.forEach(ball => ball.render(ctx));
 
     // Render paddle
     this.paddle.render(ctx);
 
     // Render HUD
-    this.renderHUD(ctx);
+    this.renderHUD(ctx, time);
   }
 
-  private renderHUD(ctx: CanvasRenderingContext2D): void {
+  private renderHUD(ctx: CanvasRenderingContext2D, time: number): void {
     ctx.save();
 
     // Score
@@ -336,7 +442,40 @@ export class Game {
     ctx.shadowColor = COLORS.ball;
     ctx.fillText(`LEVEL: ${this.level.currentLevel + 1}`, CANVAS_WIDTH - 20, 35);
 
+    // Active power-ups display
+    this.renderActivePowerUps(ctx, time);
+
     ctx.restore();
+  }
+
+  private renderActivePowerUps(ctx: CanvasRenderingContext2D, time: number): void {
+    const powerUps: { type: PowerUpType; color: string; symbol: string; duration: number }[] = [
+      { type: PowerUpType.WIDE_PADDLE, color: '#00FFFF', symbol: '◄►', duration: POWERUP_DURATIONS.WIDE_PADDLE },
+      { type: PowerUpType.SLOW_MO, color: '#FFFF00', symbol: '◷', duration: POWERUP_DURATIONS.SLOW_MO },
+      { type: PowerUpType.FIRE_BALL, color: '#FF6600', symbol: '●', duration: POWERUP_DURATIONS.FIRE_BALL },
+      { type: PowerUpType.STICKY_PADDLE, color: '#00FF66', symbol: '▬', duration: POWERUP_DURATIONS.STICKY_PADDLE },
+    ];
+
+    let offsetX = 20;
+    const y = CANVAS_HEIGHT - 30;
+
+    ctx.font = '16px "Courier New", monospace';
+    ctx.textAlign = 'left';
+
+    for (const pu of powerUps) {
+      if (this.powerUpManager.isEffectActive(pu.type)) {
+        const remaining = this.powerUpManager.getEffectTimeRemaining(pu.type, time);
+        const seconds = Math.ceil(remaining / 1000);
+        const pulse = Math.sin(time * 0.01) * 0.3 + 0.7;
+
+        ctx.fillStyle = pu.color;
+        ctx.shadowColor = pu.color;
+        ctx.shadowBlur = 10 * pulse;
+        ctx.fillText(`${pu.symbol} ${seconds}s`, offsetX, y);
+
+        offsetX += 70;
+      }
+    }
   }
 
   private renderMenu(ctx: CanvasRenderingContext2D, time: number): void {

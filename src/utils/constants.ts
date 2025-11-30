@@ -57,3 +57,27 @@ export const PARTICLE_SPEED = 5;
 
 // Trail settings
 export const TRAIL_LENGTH = 12;
+
+// Power-up settings
+export const POWERUP_DROP_CHANCE = 0.25; // 25% chance to drop from destroyed brick
+export const POWERUP_FALL_SPEED = 2.5;
+export const POWERUP_WIDTH = 50;
+export const POWERUP_HEIGHT = 20;
+
+// Power-up durations (in milliseconds)
+export const POWERUP_DURATIONS = {
+  WIDE_PADDLE: 10000,   // 10 seconds
+  SLOW_MO: 8000,        // 8 seconds
+  FIRE_BALL: 6000,      // 6 seconds
+  STICKY_PADDLE: 15000, // 15 seconds
+};
+
+// Power-up colors
+export const POWERUP_COLORS = {
+  MULTI_BALL: { color: '#FF00FF', glow: '#FF00FF', symbol: '×3' },
+  WIDE_PADDLE: { color: '#00FFFF', glow: '#00FFFF', symbol: '◄►' },
+  SLOW_MO: { color: '#FFFF00', glow: '#FFFF00', symbol: '◷' },
+  EXTRA_LIFE: { color: '#FF0066', glow: '#FF0066', symbol: '♥' },
+  FIRE_BALL: { color: '#FF6600', glow: '#FF6600', symbol: '🔥' },
+  STICKY_PADDLE: { color: '#00FF66', glow: '#00FF66', symbol: '▬' },
+};
