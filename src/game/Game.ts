@@ -83,6 +83,11 @@ export class Game {
       this.pauseKeyReleased = true;
     }
 
+    // On mobile, allow tap to resume from pause
+    if (this.state === GameState.PAUSED && this.input.isMobile() && this.input.isActionPressed()) {
+      this.state = GameState.PLAYING;
+    }
+
     // Update screen shake
     if (this.screenShake > 0) {
       this.screenShake = Math.max(0, this.screenShake - dt / 50);
@@ -337,6 +342,8 @@ export class Game {
   private renderMenu(ctx: CanvasRenderingContext2D, time: number): void {
     ctx.save();
 
+    const isMobile = this.input.isMobile();
+
     // Title with pulsing glow
     const pulse = Math.sin(time * 0.003) * 0.3 + 0.7;
 
@@ -351,13 +358,14 @@ export class Game {
     ctx.shadowColor = COLORS.ball;
     ctx.fillText('BREAKOUT', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
 
-    // Start prompt (blinking)
+    // Start prompt (blinking) - different text for mobile
     if (Math.sin(time * 0.005) > 0) {
       ctx.font = '24px "Courier New", monospace';
       ctx.fillStyle = COLORS.text;
       ctx.shadowColor = COLORS.text;
       ctx.shadowBlur = 15;
-      ctx.fillText('PRESS SPACE TO START', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 100);
+      const startText = isMobile ? 'TAP TO START' : 'PRESS SPACE TO START';
+      ctx.fillText(startText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 100);
     }
 
     // High score
@@ -367,17 +375,22 @@ export class Game {
     ctx.shadowBlur = 10;
     ctx.fillText(`HIGH SCORE: ${this.highScore}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 150);
 
-    // Controls info
+    // Controls info - different for mobile vs desktop
     ctx.font = '14px "Courier New", monospace';
     ctx.fillStyle = '#666666';
     ctx.shadowBlur = 0;
-    ctx.fillText('← → or MOUSE to move  |  SPACE to launch  |  P to pause', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    const controlsText = isMobile
+      ? 'DRAG to move  |  TAP to launch'
+      : '← → or MOUSE to move  |  SPACE to launch  |  P to pause';
+    ctx.fillText(controlsText, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.restore();
   }
 
   private renderPauseOverlay(ctx: CanvasRenderingContext2D): void {
     ctx.save();
+
+    const isMobile = this.input.isMobile();
 
     // Darken background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -394,13 +407,16 @@ export class Game {
     ctx.font = '20px "Courier New", monospace';
     ctx.fillStyle = COLORS.text;
     ctx.shadowBlur = 10;
-    ctx.fillText('Press P or ESC to resume', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+    const resumeText = isMobile ? 'Tap to resume' : 'Press P or ESC to resume';
+    ctx.fillText(resumeText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
 
     ctx.restore();
   }
 
   private renderLevelComplete(ctx: CanvasRenderingContext2D): void {
     ctx.save();
+
+    const isMobile = this.input.isMobile();
 
     // Darken background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -419,13 +435,16 @@ export class Game {
     ctx.shadowColor = COLORS.text;
     ctx.shadowBlur = 10;
     ctx.fillText(`Score: ${this.score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
-    ctx.fillText('Press SPACE for next level', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+    const nextText = isMobile ? 'Tap for next level' : 'Press SPACE for next level';
+    ctx.fillText(nextText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
 
     ctx.restore();
   }
 
   private renderGameOver(ctx: CanvasRenderingContext2D): void {
     ctx.save();
+
+    const isMobile = this.input.isMobile();
 
     // Darken background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
@@ -454,7 +473,8 @@ export class Game {
     ctx.font = '20px "Courier New", monospace';
     ctx.fillStyle = COLORS.paddle;
     ctx.shadowColor = COLORS.paddle;
-    ctx.fillText('Press SPACE to play again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 120);
+    const restartText = isMobile ? 'Tap to play again' : 'Press SPACE to play again';
+    ctx.fillText(restartText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 120);
 
     ctx.restore();
   }
