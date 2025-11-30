@@ -1,24 +1,25 @@
-# Product Requirements Document: Neon Breakout
+# Product Requirements Document: Law's Breakout
 
 ## Overview
 
-**Project Name:** Neon Breakout
+**Project Name:** Law's Breakout
 **Version:** 1.0
 **Date:** November 2024
 
 ### Vision
-A modern reimagining of the classic Breakout/Arkanoid arcade game featuring a stunning retro-futuristic aesthetic with neon colors on a black background, complete with explosive visual effects and satisfying gameplay.
+A modern reimagining of the classic Breakout/Arkanoid arcade game featuring a stunning retro-futuristic aesthetic with neon colors on a black background, complete with explosive visual effects, power-ups, and satisfying gameplay. Fully playable on desktop and mobile.
 
 ---
 
 ## Game Description
 
 ### Core Concept
-Players control a paddle at the bottom of the screen, bouncing a ball upward to destroy a grid of bricks. The game preserves the classic Breakout mechanics while adding modern visual flair through neon aesthetics and particle effects.
+Players control a paddle at the bottom of the screen, bouncing a ball upward to destroy a grid of bricks. The game preserves the classic Breakout mechanics while adding modern visual flair through neon aesthetics, particle effects, and an engaging power-up system.
 
 ### Target Platform
 - Web browser (HTML5 Canvas)
-- Desktop-first design, responsive for various screen sizes
+- Desktop and mobile responsive design
+- Touch controls for mobile devices
 
 ---
 
@@ -28,19 +29,20 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 
 | Mechanic | Description |
 |----------|-------------|
-| **Paddle Movement** | Player moves paddle left/right using keyboard (Arrow keys or A/D) or mouse |
+| **Paddle Movement** | Player moves paddle left/right using keyboard (Arrow keys or A/D), mouse, or touch |
 | **Ball Physics** | Ball bounces off walls, paddle, and bricks at appropriate angles |
 | **Brick Destruction** | Bricks are destroyed when hit by the ball |
-| **Lives System** | Player starts with 3 lives; loses a life when ball falls below paddle |
+| **Lives System** | Player starts with 3 lives; loses a life when all balls fall below paddle |
 | **Scoring** | Points awarded for each brick destroyed (varies by brick type) |
 | **Progressive Difficulty** | Ball speed increases as more bricks are destroyed |
+| **Power-ups** | Catch falling capsules to gain temporary advantages |
 
 ### Game Flow
-1. **Start Screen** - Title with "Press SPACE to Start"
-2. **Gameplay** - Active game with paddle, ball, and bricks
-3. **Level Complete** - All bricks destroyed, advance to next level
+1. **Start Screen** - Title with "Press SPACE to Start" / "Tap to Start"
+2. **Gameplay** - Active game with paddle, ball(s), and bricks
+3. **Level Complete** - All destructible bricks destroyed, advance to next level
 4. **Game Over** - All lives lost, show final score
-5. **Victory** - All levels completed
+5. **Victory** - All 5 levels completed
 
 ### Brick Types
 
@@ -51,11 +53,18 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 | Strong | Yellow | 50 | 3 | Pulses |
 | Indestructible | Gray | 0 | ∞ | Dims on hit |
 
-### Power-ups (Phase 2)
-- **Multi-ball** - Splits ball into 3
-- **Wide Paddle** - Temporarily expands paddle width
-- **Slow Motion** - Temporarily slows ball
-- **Laser Paddle** - Shoot lasers to destroy bricks
+### Power-up System
+
+Power-ups drop from destroyed bricks with a configurable spawn chance. Catch them with the paddle to activate.
+
+| Power-Up | Color | Effect | Duration |
+|----------|-------|--------|----------|
+| **Multi-Ball** | Cyan | Splits into 3 balls | Instant |
+| **Wide Paddle** | Yellow | 50% wider paddle | 10 sec |
+| **Slow-Mo** | Blue | Ball moves at 50% speed | 8 sec |
+| **Extra Life** | Red | +1 life | Instant |
+| **Fire Ball** | Orange | Passes through bricks without bouncing | 6 sec |
+| **Sticky Paddle** | Green | Ball sticks on contact, tap to release | 15 sec |
 
 ---
 
@@ -84,19 +93,24 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 2. **Brick Explosions** - Particle burst when brick destroyed
 3. **Ball Trail** - Fading trail behind moving ball
 4. **Paddle Glow** - Intensifies on ball contact
-5. **Screen Flash** - Subtle flash on brick destruction
-6. **Background Grid** - Subtle perspective grid (Tron-style)
-7. **Scanlines** - Optional CRT scanline overlay
+5. **Screen Shake** - Subtle shake on brick destruction
+6. **Background Grid** - Subtle perspective grid (Tron-style) with pulse animation
+7. **Power-up HUD** - Active effects displayed with countdown timers
 
-### Audio (Phase 2)
-- Synthwave-style background music
-- Retro sound effects for:
-  - Ball bounce (paddle)
-  - Ball bounce (wall)
-  - Brick destruction
-  - Power-up collection
-  - Life lost
-  - Level complete
+---
+
+## Mobile Support
+
+### Touch Controls
+- **Drag** anywhere on screen to move paddle
+- **Tap** to launch ball / interact with menus
+- Touch position is tracked and paddle follows smoothly
+
+### Responsive Design
+- Canvas scales to fit any screen size while maintaining aspect ratio
+- Portrait mode hint suggests landscape orientation
+- Safe area insets respected for notched devices
+- Touch actions configured to prevent scroll/zoom interference
 
 ---
 
@@ -118,6 +132,8 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 - Firefox (latest)
 - Safari (latest)
 - Edge (latest)
+- Mobile Safari (iOS)
+- Chrome Mobile (Android)
 
 ---
 
@@ -127,6 +143,7 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 ```
 ┌─────────────────────────────────────────┐
 │  SCORE: 00000    LIVES: ♥♥♥    LVL: 1  │
+│  [WIDE 8s] [FIRE 4s]                    │
 ├─────────────────────────────────────────┤
 │                                         │
 │   ████  ████  ████  ████  ████  ████   │
@@ -143,36 +160,40 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 
 ### Screens
 1. **Title Screen** - Game logo, start prompt, high score
-2. **Game Screen** - HUD + gameplay area
-3. **Pause Menu** - Resume, restart, quit options
-4. **Game Over Screen** - Final score, restart option
+2. **Game Screen** - HUD + gameplay area + active power-up indicators
+3. **Pause Menu** - Resume, restart prompts
+4. **Game Over Screen** - Final score, high score, restart option
 5. **Level Complete** - Score bonus, next level prompt
+6. **Victory Screen** - Congratulations, final score, restart option
 
 ---
 
 ## Development Phases
 
-### Phase 1: Core Game (MVP)
+### Phase 1: Core Game (MVP) ✅
 - [x] Project setup (Vite + TypeScript)
-- [ ] Canvas rendering setup
-- [ ] Paddle with keyboard/mouse controls
-- [ ] Ball physics and collision detection
-- [ ] Brick grid generation
-- [ ] Basic scoring and lives
-- [ ] Neon visual styling
-- [ ] Basic particle effects on brick destruction
-- [ ] Game states (start, play, game over)
+- [x] Canvas rendering setup
+- [x] Paddle with keyboard/mouse controls
+- [x] Ball physics and collision detection
+- [x] Brick grid generation
+- [x] Basic scoring and lives
+- [x] Neon visual styling
+- [x] Basic particle effects on brick destruction
+- [x] Game states (start, play, pause, game over)
 
-### Phase 2: Polish & Features
-- [ ] Multiple levels with different layouts
-- [ ] Power-up system
+### Phase 2: Polish & Features ✅
+- [x] Multiple levels with different layouts (5 levels)
+- [x] Power-up system (6 types)
+- [x] Local high score persistence
+- [x] Screen shake effects
+- [x] Ball trail effects
 - [ ] Sound effects and music
-- [ ] Local high score persistence
 - [ ] Settings menu (sound, difficulty)
-- [ ] Advanced visual effects (scanlines, screen shake)
 
-### Phase 3: Enhancement
-- [ ] Mobile touch controls
+### Phase 3: Mobile & Enhancement ✅
+- [x] Mobile touch controls
+- [x] Responsive canvas scaling
+- [x] Portrait mode orientation hint
 - [ ] Online leaderboard
 - [ ] Custom level editor
 - [ ] Additional game modes
@@ -181,46 +202,44 @@ Players control a paddle at the bottom of the screen, bouncing a ball upward to 
 
 ## Success Metrics
 
-| Metric | Target |
-|--------|--------|
-| Frame Rate | Consistent 60 FPS |
-| Load Time | < 2 seconds |
-| Playability | Smooth, responsive controls |
-| Visual Appeal | Cohesive neon aesthetic |
-| Fun Factor | Addictive "one more game" feeling |
+| Metric | Target | Status |
+|--------|--------|--------|
+| Frame Rate | Consistent 60 FPS | ✅ |
+| Load Time | < 2 seconds | ✅ |
+| Playability | Smooth, responsive controls | ✅ |
+| Visual Appeal | Cohesive neon aesthetic | ✅ |
+| Mobile Support | Touch controls work smoothly | ✅ |
+| Fun Factor | Addictive "one more game" feeling | ✅ |
 
 ---
 
 ## File Structure
 
 ```
-neon-breakout/
+laws-breakout/
 ├── docs/
-│   ├── PRD.md
-│   └── TECHNICAL.md
+│   ├── PRD.md           # Product requirements
+│   ├── TECHNICAL.md     # Technical design
+│   └── TASKS.md         # Implementation tasks
 ├── src/
-│   ├── main.ts           # Entry point
+│   ├── main.ts          # Entry point
 │   ├── game/
-│   │   ├── Game.ts       # Main game class
-│   │   ├── Paddle.ts     # Paddle entity
-│   │   ├── Ball.ts       # Ball entity
-│   │   ├── Brick.ts      # Brick entity
-│   │   ├── Level.ts      # Level management
-│   │   └── Collision.ts  # Collision detection
+│   │   ├── Game.ts      # Main game class
+│   │   ├── Paddle.ts    # Paddle entity
+│   │   ├── Ball.ts      # Ball entity
+│   │   ├── Brick.ts     # Brick entity
+│   │   ├── Level.ts     # Level management
+│   │   ├── Collision.ts # Collision detection
+│   │   ├── InputManager.ts    # Keyboard/mouse/touch input
+│   │   ├── PowerUp.ts         # Power-up capsule entity
+│   │   └── PowerUpManager.ts  # Power-up system manager
 │   ├── effects/
-│   │   ├── Particle.ts   # Particle system
-│   │   ├── Trail.ts      # Ball trail effect
-│   │   └── Glow.ts       # Glow effect utilities
-│   ├── ui/
-│   │   ├── HUD.ts        # Score, lives display
-│   │   └── Screens.ts    # Menu screens
-│   ├── utils/
-│   │   ├── constants.ts  # Game constants
-│   │   └── helpers.ts    # Utility functions
-│   └── types/
-│       └── index.ts      # TypeScript interfaces
-├── public/
-│   └── index.html
+│   │   └── ParticleSystem.ts  # Particle effects
+│   ├── types/
+│   │   └── index.ts     # TypeScript interfaces
+│   └── utils/
+│       └── constants.ts # Game constants
+├── index.html
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts

@@ -1,4 +1,4 @@
-# Technical Design Document: Neon Breakout
+# Technical Design Document: Law's Breakout
 
 ## Architecture Overview
 
@@ -13,6 +13,7 @@
 2. **Game Loop** - Fixed timestep update, variable render
 3. **State Machine** - Clean game state transitions
 4. **Separation of Concerns** - Logic, rendering, and input handling separated
+5. **Callback Pattern** - Power-up effects use callbacks for clean integration
 
 ---
 
@@ -52,14 +53,8 @@ enum GameState {
   PLAYING = 'playing',
   PAUSED = 'paused',
   LEVEL_COMPLETE = 'level_complete',
-  GAME_OVER = 'game_over'
-}
-
-interface StateHandler {
-  enter(): void;
-  update(dt: number): void;
-  render(ctx: CanvasRenderingContext2D): void;
-  exit(): void;
+  GAME_OVER = 'game_over',
+  VICTORY = 'victory'
 }
 ```
 
@@ -67,13 +62,6 @@ interface StateHandler {
 
 #### Ball-Brick Collision (AABB)
 ```typescript
-interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 function checkCollision(ball: Circle, brick: Rectangle): CollisionResult | null {
   // Find closest point on brick to ball center
   const closestX = clamp(ball.x, brick.x, brick.x + brick.width);
@@ -85,7 +73,6 @@ function checkCollision(ball: Circle, brick: Rectangle): CollisionResult | null 
   const distance = Math.sqrt(distX * distX + distY * distY);
 
   if (distance < ball.radius) {
-    // Determine collision side for bounce direction
     return {
       hit: true,
       side: determineSide(ball, brick, closestX, closestY)
@@ -127,10 +114,20 @@ class Ball {
   speed: number = 5;
   trail: TrailPoint[] = [];
 
+  // Power-up states
+  isOnFire: boolean = false;
+  isSlowMo: boolean = false;
+  isStuck: boolean = false;
+  stuckOffset: number = 0;
+
   // Neon colors
   color: string = '#FF00FF';
   glowColor: string = '#FF00FF';
   glowIntensity: number = 20;
+
+  clone(): Ball {
+    // Creates a copy for multi-ball power-up
+  }
 }
 ```
 
@@ -144,9 +141,12 @@ class Paddle {
   height: number = 15;
   speed: number = 8;
 
+  // Power-up states
+  isWide: boolean = false;
+  isSticky: boolean = false;
+
   // Neon styling
   color: string = '#00FFFF';
-  glowColor: string = '#00FFFF';
   glowIntensity: number = 15;
 }
 ```
@@ -181,6 +181,86 @@ class Brick {
 
 ---
 
+## Power-Up System
+
+### PowerUp Entity
+
+```typescript
+enum PowerUpType {
+  MULTI_BALL = 'multi_ball',
+  WIDE_PADDLE = 'wide_paddle',
+  SLOW_MO = 'slow_mo',
+  EXTRA_LIFE = 'extra_life',
+  FIRE_BALL = 'fire_ball',
+  STICKY_PADDLE = 'sticky_paddle'
+}
+
+class PowerUp {
+  x: number;
+  y: number;
+  width: number = 50;
+  height: number = 20;
+  type: PowerUpType;
+  velocityY: number = 2;
+  color: string;
+  label: string;
+}
+```
+
+### PowerUpManager
+
+```typescript
+interface PowerUpCallbacks {
+  onMultiBall: () => void;
+  onWidePaddle: (active: boolean) => void;
+  onSlowMo: (active: boolean) => void;
+  onExtraLife: () => void;
+  onFireBall: (active: boolean) => void;
+  onStickyPaddle: (active: boolean) => void;
+}
+
+class PowerUpManager {
+  private activePowerUps: PowerUp[] = [];
+  private activeTimers: Map<PowerUpType, number> = new Map();
+  private callbacks: PowerUpCallbacks;
+
+  // Spawn chance configurable
+  private spawnChance: number = 0.15;
+
+  maybeSpawn(x: number, y: number): void {
+    if (Math.random() < this.spawnChance) {
+      const type = this.randomType();
+      this.activePowerUps.push(new PowerUp(x, y, type));
+    }
+  }
+
+  activate(type: PowerUpType): void {
+    // Handle instant effects (multi-ball, extra life)
+    // Start timers for timed effects
+    // Call appropriate callback
+  }
+
+  getActiveEffects(): { type: PowerUpType; timeRemaining: number }[] {
+    // Returns active timed effects for HUD display
+  }
+}
+```
+
+### Power-Up Durations
+
+```typescript
+export const POWER_UP_DURATIONS: Record<PowerUpType, number> = {
+  [PowerUpType.MULTI_BALL]: 0,      // Instant
+  [PowerUpType.WIDE_PADDLE]: 10000,  // 10 seconds
+  [PowerUpType.SLOW_MO]: 8000,       // 8 seconds
+  [PowerUpType.EXTRA_LIFE]: 0,       // Instant
+  [PowerUpType.FIRE_BALL]: 6000,     // 6 seconds
+  [PowerUpType.STICKY_PADDLE]: 15000 // 15 seconds
+};
+```
+
+---
+
 ## Visual Effects System
 
 ### 1. Neon Glow Effect
@@ -197,11 +277,7 @@ function drawWithGlow(
   ctx.shadowBlur = intensity;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
-
-  // Draw multiple times for stronger glow
   drawFn();
-  drawFn();
-
   ctx.restore();
 }
 ```
@@ -227,10 +303,8 @@ class ParticleSystem {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 2 + Math.random() * 4;
-
       this.particles.push({
-        x,
-        y,
+        x, y,
         velocityX: Math.cos(angle) * speed,
         velocityY: Math.sin(angle) * speed,
         life: 1,
@@ -240,98 +314,119 @@ class ParticleSystem {
       });
     }
   }
-
-  update(dt: number): void {
-    this.particles = this.particles.filter(p => {
-      p.x += p.velocityX;
-      p.y += p.velocityY;
-      p.velocityY += 0.1; // Gravity
-      p.life -= dt / 1000;
-      return p.life > 0;
-    });
-  }
-
-  render(ctx: CanvasRenderingContext2D): void {
-    this.particles.forEach(p => {
-      const alpha = p.life / p.maxLife;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-  }
 }
 ```
 
 ### 3. Ball Trail Effect
 
 ```typescript
-interface TrailPoint {
-  x: number;
-  y: number;
-  alpha: number;
-}
+class Ball {
+  private trail: { x: number; y: number }[] = [];
+  private maxTrailLength: number = 10;
 
-class Trail {
-  points: TrailPoint[] = [];
-  maxLength: number = 15;
-
-  addPoint(x: number, y: number): void {
-    this.points.unshift({ x, y, alpha: 1 });
-    if (this.points.length > this.maxLength) {
-      this.points.pop();
+  updateTrail(): void {
+    this.trail.unshift({ x: this.x, y: this.y });
+    if (this.trail.length > this.maxTrailLength) {
+      this.trail.pop();
     }
   }
 
-  render(ctx: CanvasRenderingContext2D, color: string): void {
-    this.points.forEach((point, index) => {
-      const alpha = 1 - (index / this.maxLength);
-      const radius = 8 * (1 - index / this.maxLength * 0.5);
-
-      ctx.save();
-      ctx.globalAlpha = alpha * 0.5;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+  renderTrail(ctx: CanvasRenderingContext2D): void {
+    this.trail.forEach((point, i) => {
+      const alpha = 1 - i / this.trail.length;
+      const radius = this.radius * (1 - i / this.trail.length * 0.5);
+      // Render fading circles
     });
   }
 }
 ```
 
-### 4. Background Grid (Tron-style)
+### 4. Screen Shake
 
 ```typescript
-function drawBackgroundGrid(ctx: CanvasRenderingContext2D): void {
-  const gridColor = '#003333';
-  const gridSpacing = 40;
+class Game {
+  private screenShake: number = 0;
 
-  ctx.strokeStyle = gridColor;
-  ctx.lineWidth = 1;
-
-  // Vertical lines
-  for (let x = 0; x < canvas.width; x += gridSpacing) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
+  triggerShake(intensity: number = 5): void {
+    this.screenShake = intensity;
   }
 
-  // Horizontal lines with perspective effect
-  for (let y = 0; y < canvas.height; y += gridSpacing) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
+  render(): void {
+    if (this.screenShake > 0) {
+      const offsetX = (Math.random() - 0.5) * this.screenShake;
+      const offsetY = (Math.random() - 0.5) * this.screenShake;
+      this.ctx.translate(offsetX, offsetY);
+      this.screenShake *= 0.9;
+    }
+    // ... render game
   }
+}
+```
+
+---
+
+## Input Handling
+
+### Multi-Input Support
+
+```typescript
+class InputManager {
+  private keys: Set<string> = new Set();
+  private mouseX: number = 0;
+  private touchX: number | null = null;
+  private useMouseControl: boolean = false;
+  public isMobile: boolean;
+
+  constructor(canvas: HTMLCanvasElement) {
+    this.isMobile = 'ontouchstart' in window;
+    this.setupKeyboardListeners();
+    this.setupMouseListeners(canvas);
+    this.setupTouchListeners(canvas);
+  }
+
+  getTargetX(): number | null {
+    if (this.touchX !== null) return this.touchX;
+    if (this.useMouseControl) return this.mouseX;
+    return null;
+  }
+
+  getKeyboardDirection(): number {
+    let direction = 0;
+    if (this.keys.has('ArrowLeft') || this.keys.has('a')) direction -= 1;
+    if (this.keys.has('ArrowRight') || this.keys.has('d')) direction += 1;
+    return direction;
+  }
+}
+```
+
+---
+
+## Responsive Canvas
+
+### Scaling System
+
+```typescript
+function resizeCanvas(): void {
+  const container = document.getElementById('gameContainer');
+  const containerWidth = container.clientWidth;
+  const containerHeight = container.clientHeight;
+
+  const scale = Math.min(
+    containerWidth / CANVAS_WIDTH,
+    containerHeight / CANVAS_HEIGHT
+  );
+
+  canvas.style.width = `${CANVAS_WIDTH * scale}px`;
+  canvas.style.height = `${CANVAS_HEIGHT * scale}px`;
+}
+
+// Convert screen coordinates to canvas coordinates
+function screenToCanvas(screenX: number, screenY: number): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (screenX - rect.left) * (CANVAS_WIDTH / rect.width),
+    y: (screenY - rect.top) * (CANVAS_HEIGHT / rect.height)
+  };
 }
 ```
 
@@ -342,88 +437,19 @@ function drawBackgroundGrid(ctx: CanvasRenderingContext2D): void {
 ### Level Data Format
 
 ```typescript
-interface LevelData {
-  id: number;
-  name: string;
-  bricks: BrickConfig[][];
-  speedMultiplier: number;
-}
-
 // 0 = empty, 1 = standard, 2 = medium, 3 = strong, -1 = indestructible
-const LEVEL_1: number[][] = [
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-  [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+const LEVELS: number[][][] = [
+  // Level 1: Classic rows
+  [[1,1,1,1,1,1,1,1,1,1], [2,2,2,2,2,2,2,2,2,2], ...],
+  // Level 2: Pyramid
+  [...],
+  // Level 3: Fortress
+  [...],
+  // Level 4: Checkerboard
+  [...],
+  // Level 5: Final challenge
+  [...]
 ];
-```
-
-### Color Assignment by Row
-
-```typescript
-const ROW_COLORS: string[] = [
-  '#00FFFF', // Cyan
-  '#FF00FF', // Magenta
-  '#FFFF00', // Yellow
-  '#00FF00', // Green
-  '#FF6600', // Orange
-  '#FF0066', // Pink
-];
-
-function getBrickColor(row: number): string {
-  return ROW_COLORS[row % ROW_COLORS.length];
-}
-```
-
----
-
-## Input Handling
-
-```typescript
-class InputManager {
-  private keys: Set<string> = new Set();
-  private mouseX: number = 0;
-  private useMouseControl: boolean = false;
-
-  constructor(canvas: HTMLCanvasElement) {
-    window.addEventListener('keydown', (e) => {
-      this.keys.add(e.key);
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        this.useMouseControl = false;
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      this.keys.delete(e.key);
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      this.mouseX = e.clientX - rect.left;
-      this.useMouseControl = true;
-    });
-  }
-
-  getHorizontalInput(): number {
-    if (this.useMouseControl) {
-      return this.mouseX;
-    }
-
-    let direction = 0;
-    if (this.keys.has('ArrowLeft') || this.keys.has('a') || this.keys.has('A')) {
-      direction -= 1;
-    }
-    if (this.keys.has('ArrowRight') || this.keys.has('d') || this.keys.has('D')) {
-      direction += 1;
-    }
-    return direction;
-  }
-
-  isKeyPressed(key: string): boolean {
-    return this.keys.has(key);
-  }
-}
 ```
 
 ---
@@ -439,17 +465,15 @@ export const CANVAS_HEIGHT = 600;
 export const PADDLE_WIDTH = 100;
 export const PADDLE_HEIGHT = 15;
 export const PADDLE_SPEED = 8;
-export const PADDLE_Y_OFFSET = 50; // From bottom
+export const PADDLE_Y_OFFSET = 50;
 
 // Ball settings
 export const BALL_RADIUS = 8;
 export const BALL_INITIAL_SPEED = 5;
 export const BALL_MAX_SPEED = 12;
-export const BALL_SPEED_INCREMENT = 0.5;
+export const BALL_SPEED_INCREMENT = 0.1;
 
 // Brick settings
-export const BRICK_ROWS = 5;
-export const BRICK_COLS = 10;
 export const BRICK_WIDTH = 70;
 export const BRICK_HEIGHT = 25;
 export const BRICK_PADDING = 5;
@@ -458,7 +482,6 @@ export const BRICK_OFFSET_LEFT = 35;
 
 // Game settings
 export const INITIAL_LIVES = 3;
-export const POINTS_PER_BRICK = 10;
 
 // Colors
 export const COLORS = {
@@ -467,67 +490,59 @@ export const COLORS = {
   ball: '#FF00FF',
   text: '#FFFFFF',
   grid: '#003333',
-  bricks: ['#00FFFF', '#FF00FF', '#FFFF00', '#00FF00', '#FF6600']
+  powerUps: {
+    multi_ball: '#00FFFF',
+    wide_paddle: '#FFFF00',
+    slow_mo: '#0088FF',
+    extra_life: '#FF0066',
+    fire_ball: '#FF6600',
+    sticky_paddle: '#00FF66'
+  }
 };
 ```
-
----
-
-## Implementation Order
-
-### Sprint 1: Foundation
-1. Project setup (Vite + TypeScript + Canvas)
-2. Game loop implementation
-3. Basic rendering (black background, grid)
-4. Paddle entity with keyboard controls
-
-### Sprint 2: Core Mechanics
-5. Ball entity with physics
-6. Wall collision detection
-7. Paddle-ball collision with angle variation
-8. Brick grid generation and rendering
-
-### Sprint 3: Gameplay
-9. Brick-ball collision detection
-10. Brick destruction and scoring
-11. Lives system
-12. Game state management (start, play, game over)
-
-### Sprint 4: Visual Polish
-13. Neon glow effects on all entities
-14. Particle explosion system
-15. Ball trail effect
-16. Brick pulse animations
-17. HUD with neon styling
-
-### Sprint 5: Game Loop Polish
-18. Progressive difficulty (speed increase)
-19. Multiple levels
-20. Level transitions
-21. Final polish and bug fixes
 
 ---
 
 ## Performance Considerations
 
 1. **Object Pooling** - Reuse particle objects instead of creating new ones
-2. **Dirty Rectangle Rendering** - Only redraw changed areas (optional)
-3. **RequestAnimationFrame** - Sync with browser refresh rate
-4. **Canvas Optimization** - Use `willReadFrequently: false` context option
-5. **Glow Effect Limit** - Cap shadowBlur to prevent performance issues
+2. **RequestAnimationFrame** - Sync with browser refresh rate
+3. **Canvas Optimization** - Use `willReadFrequently: false` context option
+4. **Glow Effect Limit** - Cap shadowBlur to prevent performance issues
+5. **Mobile Optimization** - Touch events use passive listeners where possible
 
 ---
 
-## Testing Strategy
+## Testing Checklist
 
-### Manual Testing Checklist
-- [ ] Ball bounces correctly off all walls
-- [ ] Ball bounces off paddle at correct angles
-- [ ] Bricks are destroyed on contact
-- [ ] Score increments correctly
-- [ ] Lives decrement when ball is lost
-- [ ] Game over triggers when lives = 0
-- [ ] All neon effects render properly
-- [ ] Particle effects spawn on brick destruction
-- [ ] Controls feel responsive
-- [ ] 60 FPS maintained during gameplay
+### Core Mechanics
+- [x] Ball bounces correctly off all walls
+- [x] Ball bounces off paddle at correct angles
+- [x] Bricks are destroyed on contact
+- [x] Score increments correctly
+- [x] Lives decrement when all balls are lost
+- [x] Game over triggers when lives = 0
+- [x] All 5 levels are playable
+
+### Visual Effects
+- [x] All neon effects render properly
+- [x] Particle effects spawn on brick destruction
+- [x] Ball trail renders correctly
+- [x] Screen shake activates on brick destruction
+- [x] Power-up HUD shows active effects
+
+### Power-ups
+- [x] Multi-ball spawns 3 balls
+- [x] Wide paddle increases paddle size
+- [x] Slow-mo reduces ball speed
+- [x] Extra life adds a life
+- [x] Fire ball passes through bricks
+- [x] Sticky paddle catches ball
+- [x] Timed effects expire correctly
+
+### Mobile
+- [x] Touch controls move paddle
+- [x] Canvas scales to screen size
+- [x] Touch to launch works
+- [x] No unwanted scroll/zoom on touch
+- [x] 60 FPS maintained on mobile devices

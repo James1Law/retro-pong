@@ -1,7 +1,7 @@
 {
-  "name": "neon-breakout",
+  "name": "laws-breakout",
   "version": "1.0.0",
-  "description": "A retro-futuristic Breakout game with neon visuals",
+  "description": "A retro-futuristic Breakout game with neon visuals and power-ups",
   "type": "module",
   "scripts": {
     "dev": "vite",

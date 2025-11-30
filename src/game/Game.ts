@@ -54,7 +54,7 @@ export class Game {
     this.setupPowerUpCallbacks();
 
     // Load high score
-    const savedHighScore = localStorage.getItem('neonBreakoutHighScore');
+    const savedHighScore = localStorage.getItem('lawsBreakoutHighScore');
     if (savedHighScore) {
       this.highScore = parseInt(savedHighScore, 10);
     }
@@ -321,7 +321,7 @@ export class Game {
   private gameOver(): void {
     if (this.score > this.highScore) {
       this.highScore = this.score;
-      localStorage.setItem('neonBreakoutHighScore', this.highScore.toString());
+      localStorage.setItem('lawsBreakoutHighScore', this.highScore.toString());
     }
     this.state = GameState.GAME_OVER;
   }
@@ -491,7 +491,7 @@ export class Game {
     ctx.fillStyle = COLORS.paddle;
     ctx.shadowColor = COLORS.paddle;
     ctx.shadowBlur = 30 * pulse;
-    ctx.fillText('NEON', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+    ctx.fillText("LAW'S", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
     ctx.fillStyle = COLORS.ball;
     ctx.shadowColor = COLORS.ball;
