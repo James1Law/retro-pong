@@ -312,6 +312,7 @@ export class Game {
     // Initialize audio on first user interaction
     audioManager.init();
     audioManager.resume();
+    audioManager.testBeep(); // Debug: test if basic audio works
     audioManager.gameStart();
 
     this.score = 0;

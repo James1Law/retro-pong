@@ -32,16 +32,24 @@ export class AudioManager {
    * Initialize audio context - must be called after user interaction
    */
   init(): void {
-    if (this.initialized) return;
+    if (this.initialized && this.audioContext) return;
 
     try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) {
+        console.warn('Web Audio API not supported');
+        return;
+      }
+
+      this.audioContext = new AudioContextClass();
       this.masterGain = this.audioContext.createGain();
       this.masterGain.connect(this.audioContext.destination);
-      this.updateVolume();
+      this.masterGain.gain.value = this._muted ? 0 : this._volume;
       this.initialized = true;
+
+      console.log('Audio initialized, state:', this.audioContext.state);
     } catch (e) {
-      console.warn('Web Audio API not supported');
+      console.warn('Failed to initialize Web Audio:', e);
     }
   }
 
@@ -49,9 +57,20 @@ export class AudioManager {
    * Resume audio context if suspended (required for mobile)
    */
   resume(): void {
-    if (this.audioContext?.state === 'suspended') {
-      this.audioContext.resume();
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().then(() => {
+        console.log('Audio context resumed, state:', this.audioContext?.state);
+      }).catch(e => {
+        console.warn('Failed to resume audio context:', e);
+      });
     }
+  }
+
+  /**
+   * Check if audio is ready to play
+   */
+  isReady(): boolean {
+    return this.initialized && this.audioContext !== null && this.audioContext.state === 'running';
   }
 
   get muted(): boolean {
@@ -93,7 +112,19 @@ export class AudioManager {
     volume: number = 1,
     fadeOut: boolean = true
   ): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (!this.audioContext || !this.masterGain) {
+      console.warn('Audio not ready:', {
+        hasContext: !!this.audioContext,
+        hasGain: !!this.masterGain,
+        state: this.audioContext?.state
+      });
+      return;
+    }
+
+    // Resume context if needed (can happen on mobile)
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
 
     const osc = this.audioContext.createOscillator();
     const gain = this.audioContext.createGain();
@@ -128,6 +159,11 @@ export class AudioManager {
   ): void {
     if (!this.audioContext || !this.masterGain) return;
 
+    // Resume context if needed
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
     const osc = this.audioContext.createOscillator();
     const gain = this.audioContext.createGain();
 
@@ -152,6 +188,11 @@ export class AudioManager {
 
   private playNoise(duration: number, volume: number = 1): void {
     if (!this.audioContext || !this.masterGain) return;
+
+    // Resume context if needed
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
 
     const bufferSize = this.audioContext.sampleRate * duration;
     const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
@@ -302,6 +343,45 @@ export class AudioManager {
    */
   menuBlip(): void {
     this.playTone(880, 0.05, 'square', 0.4);
+  }
+
+  /**
+   * Simple test beep - for debugging audio issues
+   */
+  testBeep(): void {
+    if (!this.audioContext || !this.masterGain) {
+      console.error('testBeep: No audio context or master gain');
+      return;
+    }
+
+    console.log('testBeep: Playing test sound...', {
+      contextState: this.audioContext.state,
+      masterGainValue: this.masterGain.gain.value,
+      muted: this._muted,
+      volume: this._volume
+    });
+
+    // Resume if needed
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    // Create a simple oscillator - no fancy stuff
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+
+    osc.type = 'square';
+    osc.frequency.value = 440; // A4 note
+
+    gain.gain.value = 0.3; // Set directly, no ramps
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start();
+    osc.stop(this.audioContext.currentTime + 0.2); // Play for 200ms
+
+    console.log('testBeep: Sound scheduled');
   }
 }
 
