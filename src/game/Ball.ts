@@ -63,6 +63,7 @@ export class Ball {
     this.stuckOffset = this.x - paddle.centerX;
     this.velocityX = 0;
     this.velocityY = 0;
+    this.trail = []; // Clear trail when ball sticks to paddle
   }
 
   update(_dt: number, paddle: Paddle): boolean {
