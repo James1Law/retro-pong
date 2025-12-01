@@ -101,12 +101,15 @@ export class AudioManager {
     osc.type = type;
     osc.frequency.value = frequency;
 
-    gain.gain.value = volume * 0.5; // Scale down to avoid clipping
+    const gainValue = volume * 0.5; // Scale down to avoid clipping
+    const now = this.audioContext.currentTime;
+
+    // Must use setValueAtTime before exponentialRampToValueAtTime
+    gain.gain.setValueAtTime(gainValue, now);
 
     osc.connect(gain);
     gain.connect(this.masterGain);
 
-    const now = this.audioContext.currentTime;
     osc.start(now);
 
     if (fadeOut) {
@@ -129,14 +132,17 @@ export class AudioManager {
     const gain = this.audioContext.createGain();
 
     osc.type = type;
-    osc.frequency.value = startFreq;
 
-    gain.gain.value = volume * 0.5;
+    const gainValue = volume * 0.5;
+    const now = this.audioContext.currentTime;
+
+    // Must use setValueAtTime before exponentialRampToValueAtTime
+    osc.frequency.setValueAtTime(startFreq, now);
+    gain.gain.setValueAtTime(gainValue, now);
 
     osc.connect(gain);
     gain.connect(this.masterGain);
 
-    const now = this.audioContext.currentTime;
     osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
@@ -163,13 +169,16 @@ export class AudioManager {
     filter.type = 'lowpass';
     filter.frequency.value = 2000;
 
-    gain.gain.value = volume * 0.3;
+    const gainValue = volume * 0.3;
+    const now = this.audioContext.currentTime;
+
+    // Must use setValueAtTime before exponentialRampToValueAtTime
+    gain.gain.setValueAtTime(gainValue, now);
 
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.masterGain);
 
-    const now = this.audioContext.currentTime;
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     noise.start(now);
