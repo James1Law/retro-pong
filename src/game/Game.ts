@@ -13,6 +13,7 @@ import { InputManager } from './InputManager';
 import { ParticleSystem } from '../effects/ParticleSystem';
 import { PowerUpManager } from './PowerUpManager';
 import { checkBallBrickCollision, handleBallBrickBounce } from './Collision';
+import { audioManager } from '../audio/AudioManager';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -84,6 +85,16 @@ export class Game {
     this.powerUpManager.onExtraLife = () => {
       this.lives++;
     };
+
+    this.powerUpManager.onPowerUpCollect = (type) => {
+      if (type === PowerUpType.MULTI_BALL) {
+        audioManager.multiBall();
+      } else if (type === PowerUpType.EXTRA_LIFE) {
+        audioManager.extraLife();
+      } else {
+        audioManager.powerUpCollect();
+      }
+    };
   }
 
   private spawnMultiBalls(): void {
@@ -102,6 +113,7 @@ export class Game {
       newBall.velocityX = Math.sin(newAngle) * newBall.speed;
       newBall.velocityY = -Math.cos(newAngle) * newBall.speed;
 
+      this.setupBallCallbacks(newBall);
       this.balls.push(newBall);
     }
   }
@@ -186,6 +198,7 @@ export class Game {
       this.balls.forEach(ball => {
         if (!ball.isLaunched || ball.isStuckToPaddle) {
           ball.launch();
+          audioManager.launch();
         }
       });
     }
@@ -204,6 +217,7 @@ export class Game {
       // Ball-paddle collision
       if (ball.checkPaddleCollision(this.paddle)) {
         this.paddle.flash();
+        audioManager.paddleHit();
       }
 
       // Ball-brick collisions
@@ -221,6 +235,7 @@ export class Game {
             this.score += brick.points;
             ball.increaseSpeed();
             this.screenShake = 1;
+            audioManager.brickDestroy();
 
             // Emit explosion particles
             this.particles.emitExplosion(
@@ -236,6 +251,8 @@ export class Game {
               brick.x + brick.width / 2,
               brick.y + brick.height / 2
             );
+          } else {
+            audioManager.brickHit();
           }
 
           // Fire ball can hit multiple bricks
@@ -272,6 +289,7 @@ export class Game {
     // Check level complete
     if (this.level.isComplete()) {
       this.state = GameState.LEVEL_COMPLETE;
+      audioManager.levelComplete();
     }
   }
 
@@ -291,6 +309,12 @@ export class Game {
   }
 
   private startGame(): void {
+    // Initialize audio on first user interaction
+    audioManager.init();
+    audioManager.resume();
+    audioManager.testBeep(); // Debug: test if basic audio works
+    audioManager.gameStart();
+
     this.score = 0;
     this.lives = INITIAL_LIVES;
     this.level.loadLevel(0);
@@ -304,12 +328,18 @@ export class Game {
   private resetBalls(): void {
     this.balls = [new Ball()];
     this.balls[0].reset(this.paddle);
+    this.setupBallCallbacks(this.balls[0]);
+  }
+
+  private setupBallCallbacks(ball: Ball): void {
+    ball.onWallHit = () => audioManager.wallHit();
   }
 
   private loseLife(): void {
     this.lives--;
     this.powerUpManager.clear();
     this.paddle.reset();
+    audioManager.loseLife();
 
     if (this.lives <= 0) {
       this.gameOver();
@@ -319,11 +349,18 @@ export class Game {
   }
 
   private gameOver(): void {
-    if (this.score > this.highScore) {
+    const isNewHighScore = this.score > this.highScore;
+    if (isNewHighScore) {
       this.highScore = this.score;
       localStorage.setItem('lawsBreakoutHighScore', this.highScore.toString());
     }
     this.state = GameState.GAME_OVER;
+
+    // Play game over sound, then high score jingle if applicable
+    audioManager.gameOver();
+    if (isNewHighScore && this.score > 0) {
+      setTimeout(() => audioManager.newHighScore(), 1200);
+    }
   }
 
   private render(time: number): void {

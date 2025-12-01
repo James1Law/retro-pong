@@ -81,3 +81,7 @@ export const POWERUP_COLORS = {
   FIRE_BALL: { color: '#FF6600', glow: '#FF6600', symbol: '🔥' },
   STICKY_PADDLE: { color: '#00FF66', glow: '#00FF66', symbol: '▬' },
 };
+
+// Audio settings
+export const AUDIO_DEFAULT_VOLUME = 0.3;
+export const AUDIO_DEFAULT_MUTED = false;
