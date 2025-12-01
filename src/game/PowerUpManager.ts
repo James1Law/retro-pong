@@ -18,6 +18,7 @@ export class PowerUpManager {
   onStickyPaddle: ((active: boolean) => void) | null = null;
   onMultiBall: (() => void) | null = null;
   onExtraLife: (() => void) | null = null;
+  onPowerUpCollect: ((type: PowerUpType) => void) | null = null;
 
   spawnPowerUp(x: number, y: number): void {
     // Random chance to spawn
@@ -47,6 +48,9 @@ export class PowerUpManager {
   }
 
   private activatePowerUp(type: PowerUpType, time: number): void {
+    // Notify for sound effect
+    this.onPowerUpCollect?.(type);
+
     switch (type) {
       case PowerUpType.MULTI_BALL:
         this.onMultiBall?.();

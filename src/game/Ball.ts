@@ -29,6 +29,9 @@ export class Ball {
   isStuckToPaddle: boolean = false;
   stuckOffset: number = 0; // X offset from paddle center when stuck
 
+  // Audio callback
+  onWallHit: (() => void) | null = null;
+
   constructor(x?: number, y?: number) {
     this.x = x ?? CANVAS_WIDTH / 2;
     this.y = y ?? CANVAS_HEIGHT - 100;
@@ -100,14 +103,17 @@ export class Ball {
     if (this.x - this.radius <= 0) {
       this.x = this.radius;
       this.velocityX = Math.abs(this.velocityX);
+      this.onWallHit?.();
     } else if (this.x + this.radius >= CANVAS_WIDTH) {
       this.x = CANVAS_WIDTH - this.radius;
       this.velocityX = -Math.abs(this.velocityX);
+      this.onWallHit?.();
     }
 
     if (this.y - this.radius <= 0) {
       this.y = this.radius;
       this.velocityY = Math.abs(this.velocityY);
+      this.onWallHit?.();
     }
 
     // Check if ball fell below screen
@@ -242,6 +248,7 @@ export class Ball {
     newBall.isLaunched = true;
     newBall.isFireBall = this.isFireBall;
     newBall.isSlowMo = this.isSlowMo;
+    newBall.onWallHit = this.onWallHit;
     return newBall;
   }
 }
