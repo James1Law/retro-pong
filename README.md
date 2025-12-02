@@ -27,9 +27,28 @@ Catch falling power-ups to gain advantages:
 - **Neon Glow** - All elements have glowing neon effects
 - **Particle Explosions** - Satisfying burst when bricks are destroyed
 - **Ball Trail** - Glowing trail follows the ball
-- **Screen Shake** - Impact feedback on brick destruction
+- **Screen Shake** - Impact feedback on brick destruction (toggleable)
 - **Tron-style Grid** - Pulsing background grid
 - **Power-up Indicators** - HUD shows active effects with countdown
+
+### Audio System
+- **Retro 8-bit Sound Effects** - All sounds procedurally generated using Web Audio API
+- **Chiptune Aesthetic** - Authentic arcade-style bleeps and bloops
+- **Sound Effects Include:**
+  - Paddle and wall hits
+  - Brick damage and destruction (with explosion noise)
+  - Ball launch whoosh
+  - Power-up collection chimes
+  - Level complete fanfare
+  - Game over melody
+  - New high score celebration
+
+### Settings Menu
+- **Settings Cog** - Accessible from menu and pause screens
+- **Sound Toggle** - Turn audio on/off
+- **Volume Slider** - Adjust volume level (0-100%)
+- **Screen Shake Toggle** - Enable/disable screen shake effects
+- **Persistent Settings** - All preferences saved to localStorage
 
 ### Mobile Support
 - **Responsive Design** - Scales to fit any screen size
@@ -76,12 +95,14 @@ npm run preview
 | Move Right | `→` or `D` |
 | Launch Ball | `Space` or `Click` |
 | Pause | `P` or `Escape` |
+| Settings | Click the ⚙️ cog icon |
 
 Or use **mouse movement** to control the paddle.
 
 ### Mobile
 - **Drag** anywhere to move paddle
 - **Tap** to launch ball / interact with menus
+- **Tap ⚙️** to access settings
 
 ## Project Structure
 
@@ -93,20 +114,22 @@ laws-breakout/
 │   └── TASKS.md         # Implementation tasks
 ├── src/
 │   ├── main.ts          # Entry point
+│   ├── audio/
+│   │   └── AudioManager.ts    # Procedural 8-bit sound effects
 │   ├── game/
-│   │   ├── Game.ts      # Main game loop & states
+│   │   ├── Game.ts      # Main game loop, states & settings UI
 │   │   ├── Paddle.ts    # Paddle entity
 │   │   ├── Ball.ts      # Ball with trail
 │   │   ├── Brick.ts     # Brick types
 │   │   ├── Level.ts     # Level layouts
 │   │   ├── Collision.ts # Collision detection
-│   │   ├── InputManager.ts    # Keyboard/mouse/touch
+│   │   ├── InputManager.ts    # Keyboard/mouse/touch input
 │   │   ├── PowerUp.ts         # Power-up capsules
 │   │   └── PowerUpManager.ts  # Power-up system
 │   ├── effects/
 │   │   └── ParticleSystem.ts  # Explosion particles
 │   ├── types/
-│   │   └── index.ts     # TypeScript interfaces
+│   │   └── index.ts     # TypeScript interfaces & enums
 │   └── utils/
 │       └── constants.ts # Game settings & colors
 ├── index.html
@@ -126,7 +149,9 @@ See [Technical Documentation](docs/TECHNICAL.md) for implementation details.
 - [x] Power-up system (6 types)
 - [x] Mobile touch support
 - [x] Responsive design
-- [ ] Sound effects & music
+- [x] Retro 8-bit sound effects
+- [x] Settings menu (sound, volume, screen shake)
+- [ ] Background music
 - [ ] More levels
 - [ ] Online leaderboard
 
