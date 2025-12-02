@@ -27,6 +27,7 @@ export class Game {
   private powerUpManager: PowerUpManager;
 
   private state: GameState = GameState.MENU;
+  private previousState: GameState = GameState.MENU;
   private score: number = 0;
   private lives: number = INITIAL_LIVES;
   private highScore: number = 0;
@@ -34,6 +35,13 @@ export class Game {
   private lastTime: number = 0;
   private screenShake: number = 0;
   private pauseKeyReleased: boolean = true;
+
+  // Settings
+  private screenShakeEnabled: boolean = true;
+
+  // Settings UI layout constants
+  private readonly SETTINGS_COG_SIZE = 40;
+  private readonly SETTINGS_COG_PADDING = 20;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -58,6 +66,12 @@ export class Game {
     const savedHighScore = localStorage.getItem('lawsBreakoutHighScore');
     if (savedHighScore) {
       this.highScore = parseInt(savedHighScore, 10);
+    }
+
+    // Load screen shake setting
+    const savedScreenShake = localStorage.getItem('lawsBreakoutScreenShake');
+    if (savedScreenShake !== null) {
+      this.screenShakeEnabled = savedScreenShake === 'true';
     }
   }
 
@@ -148,11 +162,6 @@ export class Game {
       this.pauseKeyReleased = true;
     }
 
-    // On mobile, allow tap to resume from pause
-    if (this.state === GameState.PAUSED && this.input.isMobile() && this.input.isActionPressed()) {
-      this.state = GameState.PLAYING;
-    }
-
     // Update screen shake
     if (this.screenShake > 0) {
       this.screenShake = Math.max(0, this.screenShake - dt / 50);
@@ -166,7 +175,7 @@ export class Game {
         this.updatePlaying(dt, time);
         break;
       case GameState.PAUSED:
-        // Do nothing, just wait for unpause
+        this.updatePaused();
         break;
       case GameState.LEVEL_COMPLETE:
         this.updateLevelComplete();
@@ -174,12 +183,110 @@ export class Game {
       case GameState.GAME_OVER:
         this.updateGameOver();
         break;
+      case GameState.SETTINGS:
+        this.updateSettings();
+        break;
     }
   }
 
   private updateMenu(): void {
+    // Check for settings cog click first
+    const cogX = CANVAS_WIDTH - this.SETTINGS_COG_SIZE - this.SETTINGS_COG_PADDING;
+    const cogY = this.SETTINGS_COG_PADDING;
+    if (this.input.consumeClickInRect(cogX, cogY, this.SETTINGS_COG_SIZE, this.SETTINGS_COG_SIZE)) {
+      this.openSettings();
+      return;
+    }
+
     if (this.input.isActionPressed()) {
       this.startGame();
+    }
+  }
+
+  private updatePaused(): void {
+    // Check for settings cog click first
+    const cogX = CANVAS_WIDTH - this.SETTINGS_COG_SIZE - this.SETTINGS_COG_PADDING;
+    const cogY = this.SETTINGS_COG_PADDING;
+    if (this.input.consumeClickInRect(cogX, cogY, this.SETTINGS_COG_SIZE, this.SETTINGS_COG_SIZE)) {
+      this.openSettings();
+      return;
+    }
+
+    // On mobile, allow tap to resume from pause (after settings cog check)
+    if (this.input.isMobile() && this.input.isActionPressed()) {
+      this.state = GameState.PLAYING;
+    }
+  }
+
+  private openSettings(): void {
+    audioManager.menuBlip();
+    this.previousState = this.state;
+    this.state = GameState.SETTINGS;
+  }
+
+  private closeSettings(): void {
+    audioManager.menuBlip();
+    this.state = this.previousState;
+  }
+
+  private updateSettings(): void {
+    const isMobile = this.input.isMobile();
+    const centerX = CANVAS_WIDTH / 2;
+    const startY = 180;
+    const rowHeight = 70;
+    const buttonWidth = isMobile ? 200 : 180;
+    const buttonHeight = isMobile ? 50 : 40;
+    const sliderWidth = isMobile ? 250 : 200;
+    const sliderHeight = isMobile ? 40 : 30;
+
+    // Sound toggle button (row 0)
+    const soundToggleX = centerX - buttonWidth / 2;
+    const soundToggleY = startY;
+    if (this.input.consumeClickInRect(soundToggleX, soundToggleY, buttonWidth, buttonHeight)) {
+      audioManager.toggleMute();
+      audioManager.menuBlip();
+      return;
+    }
+
+    // Volume slider (row 1)
+    const volumeSliderX = centerX - sliderWidth / 2;
+    const volumeSliderY = startY + rowHeight;
+    const clickPos = this.input.getClickPosition();
+    if (this.input.consumeClickInRect(volumeSliderX, volumeSliderY, sliderWidth, sliderHeight + 20)) {
+      if (clickPos) {
+        const relativeX = clickPos.x - volumeSliderX;
+        const newVolume = Math.max(0, Math.min(1, relativeX / sliderWidth));
+        audioManager.volume = newVolume;
+        if (audioManager.muted && newVolume > 0) {
+          audioManager.muted = false;
+        }
+        audioManager.menuBlip();
+      }
+      return;
+    }
+
+    // Screen shake toggle button (row 2)
+    const shakeToggleX = centerX - buttonWidth / 2;
+    const shakeToggleY = startY + rowHeight * 2;
+    if (this.input.consumeClickInRect(shakeToggleX, shakeToggleY, buttonWidth, buttonHeight)) {
+      this.screenShakeEnabled = !this.screenShakeEnabled;
+      localStorage.setItem('lawsBreakoutScreenShake', String(this.screenShakeEnabled));
+      audioManager.menuBlip();
+      return;
+    }
+
+    // Back button (row 3)
+    const backButtonX = centerX - buttonWidth / 2;
+    const backButtonY = startY + rowHeight * 3 + 20;
+    if (this.input.consumeClickInRect(backButtonX, backButtonY, buttonWidth, buttonHeight)) {
+      this.closeSettings();
+      return;
+    }
+
+    // Also allow Escape/P to close settings
+    if (this.input.isPausePressed() && this.pauseKeyReleased) {
+      this.pauseKeyReleased = false;
+      this.closeSettings();
     }
   }
 
@@ -366,9 +473,9 @@ export class Game {
   private render(time: number): void {
     const ctx = this.ctx;
 
-    // Apply screen shake
+    // Apply screen shake (if enabled)
     ctx.save();
-    if (this.screenShake > 0) {
+    if (this.screenShakeEnabled && this.screenShake > 0) {
       const shakeX = (Math.random() - 0.5) * this.screenShake * 8;
       const shakeY = (Math.random() - 0.5) * this.screenShake * 8;
       ctx.translate(shakeX, shakeY);
@@ -389,7 +496,7 @@ export class Game {
       case GameState.PAUSED:
         this.renderGame(ctx, time);
         if (this.state === GameState.PAUSED) {
-          this.renderPauseOverlay(ctx);
+          this.renderPauseOverlay(ctx, time);
         }
         break;
       case GameState.LEVEL_COMPLETE:
@@ -399,6 +506,10 @@ export class Game {
       case GameState.GAME_OVER:
         this.renderGame(ctx, time);
         this.renderGameOver(ctx);
+        break;
+      case GameState.SETTINGS:
+        this.renderSettingsBackground(ctx, time);
+        this.renderSettings(ctx, time);
         break;
     }
 
@@ -560,10 +671,13 @@ export class Game {
       : '← → or MOUSE to move  |  SPACE to launch  |  P to pause';
     ctx.fillText(controlsText, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
+    // Settings cog icon
+    this.renderSettingsCog(ctx, time);
+
     ctx.restore();
   }
 
-  private renderPauseOverlay(ctx: CanvasRenderingContext2D): void {
+  private renderPauseOverlay(ctx: CanvasRenderingContext2D, time: number): void {
     ctx.save();
 
     const isMobile = this.input.isMobile();
@@ -585,6 +699,9 @@ export class Game {
     ctx.shadowBlur = 10;
     const resumeText = isMobile ? 'Tap to resume' : 'Press P or ESC to resume';
     ctx.fillText(resumeText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+
+    // Settings cog icon
+    this.renderSettingsCog(ctx, time);
 
     ctx.restore();
   }
@@ -651,6 +768,312 @@ export class Game {
     ctx.shadowColor = COLORS.paddle;
     const restartText = isMobile ? 'Tap to play again' : 'Press SPACE to play again';
     ctx.fillText(restartText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 120);
+
+    ctx.restore();
+  }
+
+  private renderSettingsCog(ctx: CanvasRenderingContext2D, time: number): void {
+    const cogX = CANVAS_WIDTH - this.SETTINGS_COG_SIZE - this.SETTINGS_COG_PADDING;
+    const cogY = this.SETTINGS_COG_PADDING;
+    const centerX = cogX + this.SETTINGS_COG_SIZE / 2;
+    const centerY = cogY + this.SETTINGS_COG_SIZE / 2;
+    const outerRadius = this.SETTINGS_COG_SIZE / 2 - 4;
+    const innerRadius = outerRadius * 0.5;
+    const teethCount = 8;
+    const teethDepth = outerRadius * 0.25;
+
+    // Slow rotation animation
+    const rotation = (time * 0.0005) % (Math.PI * 2);
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(rotation);
+
+    // Pulsing glow
+    const pulse = Math.sin(time * 0.003) * 0.3 + 0.7;
+
+    ctx.fillStyle = '#888888';
+    ctx.strokeStyle = '#00FFFF';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00FFFF';
+    ctx.shadowBlur = 10 * pulse;
+
+    // Draw gear teeth
+    ctx.beginPath();
+    for (let i = 0; i < teethCount; i++) {
+      const angle = (i / teethCount) * Math.PI * 2;
+      const toothAngle = ((i + 0.25) / teethCount) * Math.PI * 2;
+      const toothEndAngle = ((i + 0.75) / teethCount) * Math.PI * 2;
+
+      if (i === 0) {
+        ctx.moveTo(
+          Math.cos(angle) * outerRadius,
+          Math.sin(angle) * outerRadius
+        );
+      }
+
+      // Outer arc to tooth start
+      ctx.arc(0, 0, outerRadius, angle, toothAngle, false);
+
+      // Tooth outer edge
+      ctx.lineTo(
+        Math.cos(toothAngle) * (outerRadius + teethDepth),
+        Math.sin(toothAngle) * (outerRadius + teethDepth)
+      );
+      ctx.lineTo(
+        Math.cos(toothEndAngle) * (outerRadius + teethDepth),
+        Math.sin(toothEndAngle) * (outerRadius + teethDepth)
+      );
+
+      // Back to outer radius
+      ctx.lineTo(
+        Math.cos(toothEndAngle) * outerRadius,
+        Math.sin(toothEndAngle) * outerRadius
+      );
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Draw center hole
+    ctx.beginPath();
+    ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.background;
+    ctx.fill();
+    ctx.strokeStyle = '#00FFFF';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  private renderSettingsBackground(ctx: CanvasRenderingContext2D, time: number): void {
+    // If coming from a game state, render the game in the background
+    if (this.previousState === GameState.PLAYING || this.previousState === GameState.PAUSED) {
+      this.renderGame(ctx, time);
+    }
+    // Otherwise render menu background
+    else {
+      this.renderMenu(ctx, time);
+    }
+  }
+
+  private renderSettings(ctx: CanvasRenderingContext2D, time: number): void {
+    ctx.save();
+
+    const isMobile = this.input.isMobile();
+    const centerX = CANVAS_WIDTH / 2;
+    const startY = 180;
+    const rowHeight = 70;
+    const buttonWidth = isMobile ? 200 : 180;
+    const buttonHeight = isMobile ? 50 : 40;
+    const sliderWidth = isMobile ? 250 : 200;
+    const sliderHeight = isMobile ? 40 : 30;
+
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Title
+    const pulse = Math.sin(time * 0.003) * 0.3 + 0.7;
+    ctx.font = 'bold 40px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#00FFFF';
+    ctx.shadowColor = '#00FFFF';
+    ctx.shadowBlur = 20 * pulse;
+    ctx.fillText('SETTINGS', centerX, 100);
+
+    // Sound toggle (row 0)
+    ctx.font = `${isMobile ? 20 : 18}px "Courier New", monospace`;
+    ctx.fillStyle = '#AAAAAA';
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'right';
+    ctx.fillText('SOUND:', centerX - buttonWidth / 2 - 20, startY + buttonHeight / 2 + 6);
+
+    this.renderButton(
+      ctx,
+      centerX - buttonWidth / 2,
+      startY,
+      buttonWidth,
+      buttonHeight,
+      audioManager.muted ? 'OFF' : 'ON',
+      audioManager.muted ? '#FF4444' : '#44FF44',
+      time
+    );
+
+    // Volume slider (row 1)
+    const volumeY = startY + rowHeight;
+    ctx.fillStyle = '#AAAAAA';
+    ctx.textAlign = 'right';
+    ctx.fillText('VOLUME:', centerX - sliderWidth / 2 - 20, volumeY + sliderHeight / 2 + 6);
+
+    this.renderSlider(
+      ctx,
+      centerX - sliderWidth / 2,
+      volumeY,
+      sliderWidth,
+      sliderHeight,
+      audioManager.volume,
+      time
+    );
+
+    // Screen shake toggle (row 2)
+    const shakeY = startY + rowHeight * 2;
+    ctx.fillStyle = '#AAAAAA';
+    ctx.textAlign = 'right';
+    ctx.fillText('SHAKE:', centerX - buttonWidth / 2 - 20, shakeY + buttonHeight / 2 + 6);
+
+    this.renderButton(
+      ctx,
+      centerX - buttonWidth / 2,
+      shakeY,
+      buttonWidth,
+      buttonHeight,
+      this.screenShakeEnabled ? 'ON' : 'OFF',
+      this.screenShakeEnabled ? '#44FF44' : '#FF4444',
+      time
+    );
+
+    // Back button (row 3)
+    const backY = startY + rowHeight * 3 + 20;
+    this.renderButton(
+      ctx,
+      centerX - buttonWidth / 2,
+      backY,
+      buttonWidth,
+      buttonHeight,
+      '< BACK',
+      '#00FFFF',
+      time
+    );
+
+    // Instructions
+    ctx.font = '14px "Courier New", monospace';
+    ctx.fillStyle = '#666666';
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'center';
+    const instructionText = isMobile ? 'Tap options to change' : 'Click options to change | ESC to close';
+    ctx.fillText(instructionText, centerX, CANVAS_HEIGHT - 40);
+
+    ctx.restore();
+  }
+
+  private renderButton(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text: string,
+    color: string,
+    time: number
+  ): void {
+    ctx.save();
+
+    const pulse = Math.sin(time * 0.005) * 0.2 + 0.8;
+
+    // Button background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8 * pulse;
+
+    // Rounded rectangle
+    const radius = 5;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Button text
+    ctx.font = `bold ${height * 0.45}px "Courier New", monospace`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + width / 2, y + height / 2);
+
+    ctx.restore();
+  }
+
+  private renderSlider(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    value: number,
+    time: number
+  ): void {
+    ctx.save();
+
+    const pulse = Math.sin(time * 0.005) * 0.2 + 0.8;
+    const fillWidth = width * value;
+    const knobRadius = height / 2 - 2;
+    const knobX = x + fillWidth;
+
+    // Track background
+    ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
+    ctx.strokeStyle = '#00FFFF';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00FFFF';
+    ctx.shadowBlur = 5;
+
+    // Rounded rectangle track
+    const radius = height / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Filled portion
+    if (value > 0.02) {
+      ctx.fillStyle = '#00FFFF';
+      ctx.shadowBlur = 10 * pulse;
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y + 2);
+      const clampedWidth = Math.max(radius, fillWidth);
+      ctx.lineTo(x + clampedWidth - 2, y + 2);
+      ctx.lineTo(x + clampedWidth - 2, y + height - 2);
+      ctx.lineTo(x + radius, y + height - 2);
+      ctx.quadraticCurveTo(x + 2, y + height - 2, x + 2, y + height / 2);
+      ctx.quadraticCurveTo(x + 2, y + 2, x + radius, y + 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Knob
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#00FFFF';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#00FFFF';
+    ctx.shadowBlur = 15 * pulse;
+    ctx.beginPath();
+    ctx.arc(Math.max(x + knobRadius + 2, Math.min(x + width - knobRadius - 2, knobX)), y + height / 2, knobRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Volume percentage text
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = '#AAAAAA';
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 0;
+    ctx.fillText(`${Math.round(value * 100)}%`, x + width / 2, y + height + 18);
 
     ctx.restore();
   }
