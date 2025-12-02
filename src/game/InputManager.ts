@@ -1,11 +1,15 @@
 export class InputManager {
   private keys: Set<string> = new Set();
   private mouseX: number = 0;
+  private mouseY: number = 0;
   private useMouseControl: boolean = false;
   private isTouchDevice: boolean = false;
   private touchActive: boolean = false;
   private tapAction: boolean = false;
   private lastTapTime: number = 0;
+  private clickX: number = -1;
+  private clickY: number = -1;
+  private hasClick: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
     // Detect touch device
@@ -35,9 +39,15 @@ export class InputManager {
       }
     });
 
-    canvas.addEventListener('click', () => {
+    canvas.addEventListener('click', (e) => {
       if (!this.isTouchDevice) {
         this.tapAction = true;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        this.clickX = (e.clientX - rect.left) * scaleX;
+        this.clickY = (e.clientY - rect.top) * scaleY;
+        this.hasClick = true;
       }
     });
 
@@ -49,8 +59,13 @@ export class InputManager {
 
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       const touch = e.touches[0];
       this.mouseX = (touch.clientX - rect.left) * scaleX;
+      this.mouseY = (touch.clientY - rect.top) * scaleY;
+      // Store touch position for click detection
+      this.clickX = this.mouseX;
+      this.clickY = this.mouseY;
 
       // Detect tap (quick touch)
       const now = Date.now();
@@ -74,6 +89,7 @@ export class InputManager {
       // If touch was quick (< 200ms), treat as tap for action
       if (now - this.lastTapTime < 200) {
         this.tapAction = true;
+        this.hasClick = true;
       }
       this.touchActive = false;
     }, { passive: false });
@@ -130,5 +146,40 @@ export class InputManager {
 
   clearTapAction(): void {
     this.tapAction = false;
+  }
+
+  getClickPosition(): { x: number; y: number } | null {
+    if (this.hasClick) {
+      return { x: this.clickX, y: this.clickY };
+    }
+    return null;
+  }
+
+  consumeClick(): { x: number; y: number } | null {
+    if (this.hasClick) {
+      this.hasClick = false;
+      return { x: this.clickX, y: this.clickY };
+    }
+    return null;
+  }
+
+  isClickInRect(x: number, y: number, width: number, height: number): boolean {
+    if (!this.hasClick) return false;
+    return this.clickX >= x && this.clickX <= x + width &&
+           this.clickY >= y && this.clickY <= y + height;
+  }
+
+  consumeClickInRect(x: number, y: number, width: number, height: number): boolean {
+    if (this.isClickInRect(x, y, width, height)) {
+      this.hasClick = false;
+      return true;
+    }
+    return false;
+  }
+
+  clearClick(): void {
+    this.hasClick = false;
+    this.clickX = -1;
+    this.clickY = -1;
   }
 }

@@ -3,7 +3,8 @@ export enum GameState {
   PLAYING = 'playing',
   PAUSED = 'paused',
   LEVEL_COMPLETE = 'level_complete',
-  GAME_OVER = 'game_over'
+  GAME_OVER = 'game_over',
+  SETTINGS = 'settings'
 }
 
 export enum BrickType {
